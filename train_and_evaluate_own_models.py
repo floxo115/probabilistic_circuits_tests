@@ -7,9 +7,11 @@ import pandas as pd
 import pyjuice as juice
 from pyjuice.structures import HCLT
 from pyjuice.optim import CircuitOptimizer, CircuitScheduler
-from pyjuice.queries import conditional
+from pyjuice.queries import conditional, sample
 import torch
 from torch.utils.data import TensorDataset, DataLoader
+
+import hyppo.ksample
 
 
 def get_datasets_and_dataloaders(
@@ -39,6 +41,10 @@ def get_datasets_and_dataloaders(
     val_loader = DataLoader(val_data, shuffle=True, batch_size=512)
 
     return train_tensor, val_tensor, train_loader, val_loader
+
+
+def get_sample(pc, sample_size: int):
+    return sample(pc, sample_size)
 
 
 def get_test_score(model, val_loader):
@@ -120,7 +126,7 @@ def train_model(
             f"[Epoch {epoch}/{n_epochs}][train LL: {train_ll:.2f}; val LL: {test_ll:.2f}] ",
             end="\r",
         )
-    print()
+
     return model
 
 
@@ -141,7 +147,14 @@ if __name__ == "__main__":
 
     fns = glob("./data/*.csv")
     fns = [fn for fn in fns if match(r"./data/\d+.csv", fn) is not None]
-    results = pd.DataFrame(data={"dataset": [], "test_accuracy": []})
+    results = pd.DataFrame(
+        data={
+            "dataset": [],
+            "test_accuracy": [],
+            "energy_dist_for_sample": [],
+            "p_val_of_dist": [],
+        }
+    )
     for fn in fns[:]:
         print(f"run training and testing for {fn}")
         torch.random.manual_seed(options["SEED"])
@@ -156,12 +169,6 @@ if __name__ == "__main__":
             torch.device("cuda:0") if torch.cuda.is_available() else torch.device("cpu")
         )
 
-        # ns = HCLT(
-        #     train_set,
-        #     num_latents=5,
-        #     input_node_params={"num_cats": 2},
-        # )
-
         inputs = [
             juice.inputs(
                 i, num_node_blocks=8, dist=juice.distributions.Categorical(num_cats=2)
@@ -171,7 +178,7 @@ if __name__ == "__main__":
 
         prods = [juice.multiply(*inputs) for _ in range(3)]
 
-        ns = juice.summate(*prods, num_node_blocks=8)
+        ns = juice.summate(*prods, num_node_blocks=1)
         ns.init_parameters()
 
         pc = juice.compile(ns)
@@ -188,10 +195,15 @@ if __name__ == "__main__":
 
         acc = get_test_score(model, val_dl)
 
+        generated_sample = get_sample(model, 500).cpu().numpy()
+        val_set = val_set.numpy()
+
+        dist, p_val = hyppo.ksample.Energy().test(generated_sample, val_set)
+
         out_name = fn[fn.rfind("/") + 1 : -4]
-        results.loc[len(results)] = [out_name, acc]
+        results.loc[len(results)] = [out_name, acc, dist, p_val]
 
     results["dataset"] = results["dataset"].astype(int)
     results = results.sort_values(by="dataset")
     print(results)
-    results.to_csv("results_for_own_pc.csv", index=False)
+    results.to_csv("results_for_hclt.csv", index=False)
