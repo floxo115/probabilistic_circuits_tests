@@ -117,7 +117,8 @@ def train_model(
         # t2 = time.time()
 
         print(
-            f"[Epoch {epoch}/{n_epochs}][train LL: {train_ll:.2f}; val LL: {test_ll:.2f}] "
+            f"[Epoch {epoch}/{n_epochs}][train LL: {train_ll:.2f}; val LL: {test_ll:.2f}] ",
+            end="\r",
         )
 
     return model
@@ -129,6 +130,7 @@ if __name__ == "__main__":
 
     options = {
         "SEED": config_parser.getint("setup", "SEED"),
+        "n_epochs": config_parser.getint("setup", "n_epochs"),
         "train_proportion": config_parser.getfloat("setup", "train_proportion"),
         "lr": config_parser.getfloat("setup", "lr"),
         "pseudocount": config_parser.getfloat("setup", "pseudocount"),
@@ -140,8 +142,8 @@ if __name__ == "__main__":
     fns = glob("./data/*.csv")
     fns = [fn for fn in fns if match(r"./data/\d+.csv", fn) is not None]
     results = pd.DataFrame(data={"dataset": [], "test_accuracy": []})
-    for fn in fns:
-        print("run training and testing for {fn}")
+    for fn in fns[:]:
+        print(f"run training and testing for {fn}")
         torch.random.manual_seed(options["SEED"])
         random.seed(options["SEED"])
         np.random.seed(options["SEED"])
@@ -164,12 +166,20 @@ if __name__ == "__main__":
         pc.to(device)
 
         model = train_model(
-            pc, train_dl, val_dl, lr=options["lr"], pseudocount=options["pseudocount"]
+            pc,
+            train_dl,
+            val_dl,
+            n_epochs=options["n_epochs"],
+            lr=options["lr"],
+            pseudocount=options["pseudocount"],
         )
 
         acc = get_test_score(model, val_dl)
 
-        results.loc[len(results)] = [fn, acc]
+        out_name = fn[fn.rfind("/") + 1 : -4]
+        results.loc[len(results)] = [out_name, acc]
 
+    results["dataset"] = results["dataset"].astype(int)
+    results = results.sort_values(by="dataset")
     print(results)
-    results.to_csv("results_for_hclt.csv")
+    results.to_csv("results_for_hclt.csv", index=False)
