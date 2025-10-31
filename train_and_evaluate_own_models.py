@@ -151,8 +151,8 @@ if __name__ == "__main__":
         data={
             "dataset": [],
             "test_accuracy": [],
-            "energy_dist_for_sample": [],
-            "p_val_of_dist": [],
+            # "energy_dist_for_sample": [],
+            # "p_val_of_dist": [],
         }
     )
     for fn in fns[:]:
@@ -195,15 +195,15 @@ if __name__ == "__main__":
 
         acc = get_test_score(model, val_dl)
 
-        generated_sample = get_sample(model, 500).cpu().numpy()
-        val_set = val_set.numpy()
-
-        dist, p_val = hyppo.ksample.Energy().test(generated_sample, val_set)
+        # generated_sample = get_sample(model, 500).cpu().numpy()
+        # val_set = val_set.numpy()
+        #
+        # dist, p_val = hyppo.ksample.Energy().test(generated_sample, val_set)
 
         out_name = fn[fn.rfind("/") + 1 : -4]
-        results.loc[len(results)] = [out_name, acc, dist, p_val]
+        results.loc[len(results)] = [out_name, acc]#, dist, p_val]
 
     results["dataset"] = results["dataset"].astype(int)
     results = results.sort_values(by="dataset")
     print(results)
-    results.to_csv("results_for_hclt.csv", index=False)
+    results.to_csv("results_for_own_model.csv", index=False)
