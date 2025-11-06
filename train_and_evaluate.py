@@ -49,27 +49,67 @@ def get_test_score(model, val_loader):
     for batch in val_loader:
         # get samples of current batch and add them to the overall count
         n_samples += batch[0].shape[0]
+        n_variables = batch[0].shape[1]
         batch = batch[0].to(device)
-
+        truth = batch[:, -1].clone().to(device)
+        batch[:, -1] = -100
+        # print(batch.shape)
         # each known variable is set to False
-        missing_mask = torch.tensor(
-            [False, False, False, False, False, False, False, False, False, False, True]
-        ).to(device)
-
+        missing_mask = torch.zeros_like(batch, dtype=torch.bool).to(device)
+        missing_mask[:, -1] = 1
+        # print(missing_mask)
+        # print(missing_mask.shape)
+        # print(batch.shape)
+        # print(batch)
         # compute P(class| x_1...x_10)
         outputs = conditional(
-            model, data=batch, missing_mask=missing_mask, target_vars=[10]
+            model,
+            data=batch,
+            missing_mask=missing_mask,
+            target_vars=[n_variables - 1],
         )
 
         # get class with maximum probability
         preds = outputs.argmax(dim=2).flatten()
-        truth = batch[:, 10]
+        # truth = batch[:, -1]
 
         # compute correct count accuracy
         acc += (preds == truth).sum().item()
 
     # compute accuracy
     return acc / n_samples
+
+
+# def get_test_score(model, val_loader):
+#     """computes accuracy of the given model on the test set"""
+#
+#     acc = 0.0
+#     n_samples = 0
+#     for batch in val_loader:
+#         # get samples of current batch and add them to the overall count
+#         n_samples += batch[0].shape[0]
+#         batch = batch[0].to(device)
+#
+#         # each known variable is set to False
+#         missing_mask = torch.tensor(
+#             [False, False, False, False, False, False, False, False, False, False, True]
+#         ).to(device)
+#
+#         # compute P(class| x_1...x_10)
+#         outputs = conditional(
+#             model, data=batch, missing_mask=missing_mask, target_vars=[10]
+#         )
+#
+#         # get class with maximum probability
+#         preds = outputs.argmax(dim=2).flatten()
+#         truth = batch[:, 10]
+#
+#         # compute correct count accuracy
+#         acc += (preds == truth).sum().item()
+#
+#     # compute accuracy
+#     return acc / n_samples
+#     get samples of current batch and add them to the overall count
 
 
 def train_model(

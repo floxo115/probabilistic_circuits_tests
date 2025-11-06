@@ -18,6 +18,7 @@ def get_datasets_and_dataloaders(
         raise ValueError("test_set_proportion has to be a in (0,1)")
 
     data = pd.read_csv(fn_data, dtype=int)
+    data = data.iloc[:, 1:]
 
     # create indices for splitting train and test set
     data_np = data.to_numpy(dtype=int)
@@ -52,8 +53,16 @@ def get_test_score(model, val_loader):
         n_samples += batch[0].shape[0]
         n_variables = batch[0].shape[1]
         batch = batch[0].to(device)
+        truth = batch[:, -1].clone().to(device)
+        batch[:, -1] = -100
+        # print(batch.shape)
         # each known variable is set to False
-        missing_mask = torch.tensor([([False] * n_variables) + [True]]).to(device)
+        missing_mask = torch.zeros_like(batch, dtype=torch.bool).to(device)
+        missing_mask[:, -1] = 1
+        # print(missing_mask)
+        # print(missing_mask.shape)
+        # print(batch.shape)
+        # print(batch)
         # compute P(class| x_1...x_10)
         outputs = conditional(
             model,
@@ -64,7 +73,7 @@ def get_test_score(model, val_loader):
 
         # get class with maximum probability
         preds = outputs.argmax(dim=2).flatten()
-        truth = batch[:, -1]
+        # truth = batch[:, -1]
 
         # compute correct count accuracy
         acc += (preds == truth).sum().item()
@@ -84,8 +93,10 @@ def train_model(
 
     for batch in train_loader:
         x = batch[0].to(device)
+        # print("batch_shape", x.shape)
 
-        lls = pc(x, record_cudagraph=True)
+        lls = model(x, record_cudagraph=True)
+        # print("lls", lls)
         lls.mean().backward()
         break
 
@@ -132,7 +143,17 @@ if __name__ == "__main__":
     }
 
     datasets_paths = [
-        ("./data/uci/car_evaluation.csv", "./data/uci/car_evaluation-num_cats.csv")
+        ("./data/uci/car_evaluation.csv", "./data/uci/car_evaluation-num_cats.csv"),
+        # ("./data/uci/connect-4_binary.csv", "./data/uci/connect-4_binary-num_cats.csv"),
+        ("./data/uci/kr-vs-kp.csv", "./data/uci/kr-vs-kp-num_cats.csv"),
+        ("./data/uci/monk-1.csv", "./data/uci/monk-1-num_cats.csv"),
+        ("./data/uci/monk-2.csv", "./data/uci/monk-2-num_cats.csv"),
+        ("./data/uci/monk-3.csv", "./data/uci/monk-3-num_cats.csv"),
+        ("./data/uci/tic-tac-toe.csv", "./data/uci/tic-tac-toe-num_cats.csv"),
+        # (
+        #     "./data/uci/vote.csv",
+        #     "./data/uci/vote-num_cats.csv",
+        # ),  # vote removed because of nan values
     ]
     results = pd.DataFrame(
         data={
@@ -161,9 +182,10 @@ if __name__ == "__main__":
         )
 
         inputs = []
+        # print(len(num_cats))
         for i, _ in enumerate(num_cats):
             dist = juice.distributions.Categorical(num_cats=num_cats[i])
-            inputs.append(juice.inputs(i + 1, num_node_blocks=8, dist=dist))
+            inputs.append(juice.inputs(i, num_node_blocks=8, dist=dist))
 
         prods = [juice.multiply(*inputs) for _ in range(8)]
 
