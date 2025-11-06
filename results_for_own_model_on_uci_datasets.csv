@@ -1,0 +1,7 @@
+dataset,test_accuracy
+car_evaluation,0.976878612716763
+kr-vs-kp,0.634375
+monk-1,1.0
+monk-2,0.71900826446281
+monk-3,1.0
+tic-tac-toe,0.8020833333333334
